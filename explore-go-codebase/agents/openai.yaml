@@ -1,0 +1,4 @@
+interface:
+  display_name: "Explore Go Codebase"
+  short_description: "Map Go architecture, call chains, and runtime flows"
+  default_prompt: "Use $explore-go-codebase to analyze this Go repository and produce an evidence-backed architecture guide with Mermaid diagrams."
