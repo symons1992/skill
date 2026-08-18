@@ -1,0 +1,635 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; font-src 'none'; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Go codebase guide</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172033;
+      --muted: #5d687c;
+      --line: #d9dfeb;
+      --panel: #ffffff;
+      --canvas: #f4f6fa;
+      --accent: #3157d5;
+      --accent-soft: #edf1ff;
+      --ok: #147a56;
+      --ok-soft: #e8f7f0;
+      --warn: #9a5b00;
+      --warn-soft: #fff2d7;
+      --bad: #ad3442;
+      --bad-soft: #ffebee;
+      --shadow: 0 10px 30px rgba(35, 48, 79, .08);
+      --radius: 14px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--canvas);
+      color: var(--ink);
+      font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input, select { font: inherit; }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      overflow-wrap: anywhere;
+    }
+    a { color: inherit; }
+    .layout { display: grid; grid-template-columns: 292px minmax(0, 1fr); min-height: 100vh; }
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 22px 18px;
+      overflow: auto;
+      background: #10182b;
+      color: #f5f7ff;
+    }
+    .brand { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: #aeb9d4; }
+    .repo-name { margin: 7px 0 18px; font-size: 20px; line-height: 1.25; overflow-wrap: anywhere; }
+    .sidebar label { display: block; margin: 11px 0 5px; color: #b8c2da; font-size: 12px; }
+    .control {
+      width: 100%;
+      min-height: 38px;
+      border: 1px solid #37415b;
+      border-radius: 9px;
+      padding: 8px 10px;
+      background: #182238;
+      color: #fff;
+    }
+    .control:focus { outline: 2px solid #8da7ff; outline-offset: 1px; }
+    .side-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
+    .button {
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 8px 11px;
+      background: var(--panel);
+      color: var(--ink);
+      cursor: pointer;
+    }
+    .sidebar .button { border-color: #44506b; background: #202c45; color: #fff; }
+    .button:hover { border-color: var(--accent); }
+    .showing { margin: 10px 0; color: #aeb9d4; font-size: 12px; }
+    .interface-nav { display: grid; gap: 5px; margin-top: 10px; }
+    .interface-nav a {
+      display: block;
+      border-radius: 8px;
+      padding: 8px 9px;
+      text-decoration: none;
+      color: #dce3f6;
+      overflow-wrap: anywhere;
+    }
+    .interface-nav a:hover, .interface-nav a:focus { background: #26344f; outline: none; }
+    .interface-nav small { display: block; color: #9faac3; }
+    main { min-width: 0; padding: 34px clamp(20px, 4vw, 58px) 70px; }
+    .hero {
+      padding: clamp(24px, 4vw, 42px);
+      border-radius: 20px;
+      color: white;
+      background: linear-gradient(135deg, #1b2f69, #3157d5 58%, #3b79c9);
+      box-shadow: var(--shadow);
+    }
+    .eyebrow { font-size: 12px; letter-spacing: .13em; text-transform: uppercase; opacity: .78; }
+    h1 { margin: 8px 0 9px; font-size: clamp(28px, 5vw, 48px); line-height: 1.08; }
+    .hero p { max-width: 900px; margin: 0; font-size: 16px; color: #eef2ff; }
+    .meta { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 20px; color: #dce5ff; font-size: 13px; }
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 12px; margin: 18px 0 34px; }
+    .stat { padding: 17px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow); }
+    .stat strong { display: block; font-size: 28px; line-height: 1; }
+    .stat span { color: var(--muted); }
+    .section { margin-top: 36px; scroll-margin-top: 20px; }
+    .section > h2 { margin: 0 0 13px; font-size: 24px; }
+    .panel { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow); overflow: hidden; }
+    .panel-body { padding: 18px; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 11px 13px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+    th { background: #f7f8fb; color: #4d5870; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+    tr:last-child td { border-bottom: 0; }
+    .interface-list { display: grid; gap: 15px; }
+    .interface-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: clip;
+      scroll-margin-top: 18px;
+    }
+    .interface-card[hidden] { display: none; }
+    .interface-card > summary { list-style: none; cursor: pointer; padding: 18px 20px; }
+    .interface-card > summary::-webkit-details-marker { display: none; }
+    .interface-card[open] > summary { border-bottom: 1px solid var(--line); background: #fbfcff; }
+    .summary-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+    .summary-title { min-width: 0; }
+    .summary-title h3 { margin: 4px 0 3px; font-size: 19px; overflow-wrap: anywhere; }
+    .summary-title p { margin: 0; color: var(--muted); }
+    .badges { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+    .badge { display: inline-flex; align-items: center; border-radius: 999px; padding: 3px 9px; font-size: 12px; font-weight: 650; background: var(--accent-soft); color: var(--accent); }
+    .badge.traced { background: var(--ok-soft); color: var(--ok); }
+    .badge.partial { background: var(--warn-soft); color: var(--warn); }
+    .badge.unresolved { background: var(--bad-soft); color: var(--bad); }
+    .interface-body { padding: 20px; }
+    .contract-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .subpanel { border: 1px solid var(--line); border-radius: 11px; padding: 15px; min-width: 0; }
+    .subpanel h4 { margin: 0 0 10px; font-size: 15px; }
+    .kv { display: grid; grid-template-columns: minmax(100px, .35fr) minmax(0, 1fr); gap: 6px 12px; margin: 0; }
+    .kv dt { color: var(--muted); font-weight: 600; overflow-wrap: anywhere; }
+    .kv dd { margin: 0; overflow-wrap: anywhere; }
+    .plain-list { margin: 0; padding-left: 19px; }
+    .plain-list li + li { margin-top: 4px; }
+    .detail-section { margin-top: 22px; }
+    .detail-section h4 { margin: 0 0 10px; font-size: 17px; }
+    .chain { list-style: none; margin: 0; padding: 0; counter-reset: steps; }
+    .chain-step { position: relative; margin-left: 18px; padding: 0 0 20px 27px; border-left: 2px solid #cdd7f7; }
+    .chain-step:last-child { padding-bottom: 0; border-left-color: transparent; }
+    .chain-step::before {
+      counter-increment: steps;
+      content: counter(steps);
+      position: absolute;
+      left: -15px;
+      top: 0;
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: white;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .step-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+    .step-head strong { font-size: 15px; }
+    .stage { color: var(--accent); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+    .chain-step p { margin: 5px 0; }
+    .step-meta { color: var(--muted); font-size: 13px; }
+    .evidence { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+    .evidence code { border: 1px solid #d7def1; border-radius: 6px; padding: 2px 6px; background: #f5f7fd; color: #3d4d75; font-size: 12px; }
+    .empty { color: var(--muted); font-style: italic; }
+    .alert { border-left: 4px solid var(--warn); border-radius: 8px; padding: 11px 13px; background: var(--warn-soft); }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+    .small-card { border: 1px solid var(--line); border-radius: 11px; padding: 14px; background: var(--panel); }
+    .small-card h3, .small-card h4 { margin: 0 0 7px; }
+    .small-card p { margin: 0; color: var(--muted); }
+    footer { margin-top: 45px; color: var(--muted); font-size: 12px; }
+    noscript div { margin: 20px; padding: 16px; border: 2px solid var(--bad); background: var(--bad-soft); }
+
+    @media (max-width: 900px) {
+      .layout { display: block; }
+      .sidebar { position: relative; height: auto; }
+      .interface-nav { max-height: 240px; overflow: auto; }
+      .stats { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+      .contract-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 520px) {
+      main { padding: 20px 13px 50px; }
+      .stats { grid-template-columns: 1fr 1fr; }
+      .summary-row { display: block; }
+      .badges { margin-top: 10px; }
+      .kv { grid-template-columns: 1fr; }
+    }
+    @media print {
+      .layout { display: block; }
+      .sidebar { display: none; }
+      main { padding: 0; }
+      .hero { color: var(--ink); background: white; border: 1px solid var(--line); box-shadow: none; }
+      .hero p, .meta { color: var(--ink); }
+      .panel, .interface-card, .stat { box-shadow: none; break-inside: avoid; }
+      .interface-card { margin-bottom: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <noscript><div>This local report needs JavaScript enabled for search, filtering, and rendering the embedded analysis data.</div></noscript>
+  <div class="layout">
+    <aside class="sidebar" aria-label="Interface navigation">
+      <div class="brand">Offline codebase guide</div>
+      <div class="repo-name" id="side-repository">Repository</div>
+      <label for="search">Search interfaces</label>
+      <input class="control" id="search" type="search" placeholder="route, handler, symbol, evidence">
+      <label for="protocol-filter">Protocol</label>
+      <select class="control" id="protocol-filter"><option value="">All protocols</option></select>
+      <label for="status-filter">Trace status</label>
+      <select class="control" id="status-filter">
+        <option value="">All statuses</option>
+        <option value="traced">Traced</option>
+        <option value="partial">Partial</option>
+        <option value="unresolved">Unresolved</option>
+      </select>
+      <div class="side-actions">
+        <button class="button" id="expand-all" type="button">Expand visible</button>
+        <button class="button" id="collapse-all" type="button">Collapse all</button>
+      </div>
+      <div class="showing" id="showing"></div>
+      <nav class="interface-nav" id="interface-nav"></nav>
+    </aside>
+    <main>
+      <header class="hero">
+        <div class="eyebrow">Self-contained · local only · evidence-backed</div>
+        <h1 id="repository">Go codebase guide</h1>
+        <p id="summary"></p>
+        <div class="meta" id="metadata"></div>
+      </header>
+
+      <section class="stats" id="stats" aria-label="Interface coverage"></section>
+
+      <section class="section" id="entry-points">
+        <h2>Run, test, and entry points</h2>
+        <div class="panel table-wrap" id="run-table"></div>
+      </section>
+
+      <section class="section" id="architecture">
+        <h2>Architecture and package responsibilities</h2>
+        <div class="panel table-wrap" id="architecture-table"></div>
+      </section>
+
+      <section class="section" id="interfaces">
+        <h2>Inbound interfaces and request chains</h2>
+        <div class="interface-list" id="interface-list"></div>
+      </section>
+
+      <section class="section" id="shared-chains">
+        <h2>Shared middleware and interceptor chains</h2>
+        <div class="cards" id="shared-chain-list"></div>
+      </section>
+
+      <div id="system-sections"></div>
+
+      <section class="section" id="risks">
+        <h2>Risks and unknowns</h2>
+        <div class="panel table-wrap" id="risk-table"></div>
+      </section>
+
+      <section class="section" id="reading-order">
+        <h2>Suggested reading order</h2>
+        <div class="panel panel-body" id="reading-list"></div>
+      </section>
+
+      <footer>Generated as a local, offline artifact. No publishing or network access is required.</footer>
+    </main>
+  </div>
+
+  <script>
+    const GUIDE = __GUIDE_DATA__;
+
+    (() => {
+      "use strict";
+
+      const byId = (id) => document.getElementById(id);
+      const make = (tag, className, value) => {
+        const element = document.createElement(tag);
+        if (className) element.className = className;
+        if (value !== undefined && value !== null) element.textContent = String(value);
+        return element;
+      };
+      const values = (value) => Array.isArray(value) ? value : (value === undefined || value === null || value === "" ? [] : [value]);
+      const labelize = (value) => String(value).replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+      function appendEvidence(parent, evidence) {
+        const items = values(evidence);
+        if (!items.length) return;
+        const row = make("div", "evidence");
+        items.forEach((item) => row.append(make("code", "", item)));
+        parent.append(row);
+      }
+
+      function appendList(parent, items, emptyText = "None recorded") {
+        const entries = values(items);
+        if (!entries.length) {
+          parent.append(make("div", "empty", emptyText));
+          return;
+        }
+        const list = make("ul", "plain-list");
+        entries.forEach((item) => list.append(make("li", "", typeof item === "string" ? item : JSON.stringify(item))));
+        parent.append(list);
+      }
+
+      function evidenceCell(evidence) {
+        const cell = document.createElement("td");
+        appendEvidence(cell, evidence);
+        return cell;
+      }
+
+      function renderTable(target, columns, rows) {
+        const table = document.createElement("table");
+        const head = document.createElement("thead");
+        const headRow = document.createElement("tr");
+        columns.forEach((column) => headRow.append(make("th", "", column.label)));
+        head.append(headRow);
+        table.append(head);
+        const body = document.createElement("tbody");
+        rows.forEach((row) => {
+          const tr = document.createElement("tr");
+          columns.forEach((column) => {
+            if (column.key === "evidence") {
+              tr.append(evidenceCell(row[column.key]));
+            } else {
+              tr.append(make("td", "", row[column.key] ?? "—"));
+            }
+          });
+          body.append(tr);
+        });
+        if (!rows.length) {
+          const tr = document.createElement("tr");
+          const td = make("td", "empty", "None recorded");
+          td.colSpan = columns.length;
+          tr.append(td);
+          body.append(tr);
+        }
+        table.append(body);
+        target.replaceChildren(table);
+      }
+
+      function renderContract(title, data) {
+        const panel = make("div", "subpanel");
+        panel.append(make("h4", "", title));
+        const list = make("dl", "kv");
+        Object.entries(data || {}).forEach(([key, value]) => {
+          list.append(make("dt", "", labelize(key)));
+          const dd = document.createElement("dd");
+          if (Array.isArray(value)) appendList(dd, value);
+          else if (value && typeof value === "object") dd.textContent = JSON.stringify(value);
+          else dd.textContent = value ?? "—";
+          list.append(dd);
+        });
+        if (!Object.keys(data || {}).length) panel.append(make("div", "empty", "Not documented"));
+        else panel.append(list);
+        return panel;
+      }
+
+      function renderChain(steps) {
+        const chain = make("ol", "chain");
+        values(steps).forEach((step) => {
+          const item = make("li", "chain-step");
+          const head = make("div", "step-head");
+          head.append(make("span", "stage", step.stage || "step"));
+          head.append(make("strong", "", step.symbol || "Unnamed symbol"));
+          if (step.confidence) head.append(make("span", "badge", step.confidence));
+          item.append(head);
+          item.append(make("p", "", step.action || "No behavior recorded"));
+          [
+            ["Input", step.input],
+            ["Output", step.output],
+            ["Effects", step.effects]
+          ].forEach(([label, value]) => {
+            if (value) item.append(make("div", "step-meta", `${label}: ${value}`));
+          });
+          appendEvidence(item, step.evidence);
+          chain.append(item);
+        });
+        if (!values(steps).length) chain.append(make("li", "empty", "No ordered steps were resolved."));
+        return chain;
+      }
+
+      function detailSection(title) {
+        const section = make("section", "detail-section");
+        section.append(make("h4", "", title));
+        return section;
+      }
+
+      function renderInterface(item) {
+        const details = make("details", "interface-card");
+        details.id = `interface-${item.id}`;
+        details.dataset.protocol = String(item.protocol || "").toLowerCase();
+        details.dataset.status = item.status || "unresolved";
+        details.dataset.search = JSON.stringify(item).toLowerCase();
+        if (item.status === "traced") details.open = true;
+
+        const summary = document.createElement("summary");
+        const row = make("div", "summary-row");
+        const title = make("div", "summary-title");
+        title.append(make("div", "eyebrow", item.protocol || "Interface"));
+        title.append(make("h3", "", item.external || item.title || item.id));
+        title.append(make("p", "", item.summary || item.title || ""));
+        const badges = make("div", "badges");
+        badges.append(make("span", "badge", item.protocol || "unknown"));
+        badges.append(make("span", `badge ${item.status || "unresolved"}`, item.status || "unresolved"));
+        row.append(title, badges);
+        summary.append(row);
+        details.append(summary);
+
+        const body = make("div", "interface-body");
+        const identity = make("div", "contract-grid");
+        identity.append(
+          renderContract("Registration", item.registration || {}),
+          renderContract("Handler", item.handler || {}),
+          renderContract("Request contract", item.request || {}),
+          renderContract("Response contract", item.response || {})
+        );
+        body.append(identity);
+
+        if (values(item.shared_chain_refs).length) {
+          const shared = detailSection("Shared chains used");
+          appendList(shared, item.shared_chain_refs);
+          body.append(shared);
+        }
+
+        const chain = detailSection("Ordered request chain");
+        chain.append(renderChain(item.steps));
+        body.append(chain);
+
+        const branches = detailSection("Branches");
+        const branchWrap = make("div", "panel table-wrap");
+        renderTable(branchWrap, [
+          { key: "condition", label: "Condition" },
+          { key: "behavior", label: "Behavior" },
+          { key: "outcome", label: "Outcome" },
+          { key: "evidence", label: "Evidence" }
+        ], values(item.branches));
+        branches.append(branchWrap);
+        body.append(branches);
+
+        const errors = detailSection("Error translation");
+        const errorWrap = make("div", "panel table-wrap");
+        renderTable(errorWrap, [
+          { key: "source", label: "Source" },
+          { key: "error", label: "Error" },
+          { key: "translation", label: "Translation" },
+          { key: "external_result", label: "External result" },
+          { key: "evidence", label: "Evidence" }
+        ], values(item.errors));
+        errors.append(errorWrap);
+        body.append(errors);
+
+        const tail = make("div", "contract-grid detail-section");
+        const effects = make("div", "subpanel");
+        effects.append(make("h4", "", "State and external effects"));
+        appendList(effects, item.effects);
+        const tests = make("div", "subpanel");
+        tests.append(make("h4", "", "Tests and corroboration"));
+        appendList(tests, item.tests);
+        tail.append(effects, tests);
+        body.append(tail);
+
+        if (values(item.unresolved).length) {
+          const unresolved = detailSection("Unresolved edges and verification actions");
+          const alert = make("div", "alert");
+          appendList(alert, item.unresolved);
+          unresolved.append(alert);
+          body.append(unresolved);
+        }
+
+        details.append(body);
+        return details;
+      }
+
+      function renderSharedChains() {
+        const target = byId("shared-chain-list");
+        const chains = values(GUIDE.shared_chains);
+        chains.forEach((chain) => {
+          const card = make("article", "small-card");
+          card.id = `shared-${chain.id}`;
+          card.append(make("h3", "", chain.title || chain.id));
+          if (chain.applies_to) card.append(make("p", "", chain.applies_to));
+          const section = detailSection("Ordered steps");
+          section.append(renderChain(chain.steps));
+          card.append(section);
+          target.append(card);
+        });
+        if (!chains.length) target.append(make("div", "empty", "No shared chains recorded."));
+      }
+
+      function renderSystemSections() {
+        const target = byId("system-sections");
+        values(GUIDE.system_sections).forEach((section, index) => {
+          const wrapper = make("section", "section");
+          wrapper.id = `system-${index + 1}`;
+          wrapper.append(make("h2", "", section.title || "System notes"));
+          const cards = make("div", "cards");
+          values(section.items).forEach((item) => {
+            const card = make("article", "small-card");
+            card.append(make("h3", "", item.name || "Finding"));
+            card.append(make("p", "", item.detail || ""));
+            appendEvidence(card, item.evidence);
+            cards.append(card);
+          });
+          if (!values(section.items).length) cards.append(make("div", "empty", "None recorded."));
+          wrapper.append(cards);
+          target.append(wrapper);
+        });
+      }
+
+      function renderHeaderAndOverview() {
+        document.title = `${GUIDE.repository || "Go codebase"} — local guide`;
+        byId("repository").textContent = GUIDE.repository || "Go codebase guide";
+        byId("side-repository").textContent = GUIDE.repository || "Repository";
+        byId("summary").textContent = GUIDE.summary || "";
+        const metadata = byId("metadata");
+        [
+          ["Scope", GUIDE.scope],
+          ["Revision", GUIDE.revision],
+          ["Generated", GUIDE.generated_at],
+          ["Confidence", GUIDE.confidence]
+        ].forEach(([label, value]) => {
+          if (value) metadata.append(make("span", "", `${label}: ${value}`));
+        });
+
+        const interfaces = values(GUIDE.interfaces);
+        const counts = {
+          discovered: interfaces.length,
+          traced: interfaces.filter((item) => item.status === "traced").length,
+          partial: interfaces.filter((item) => item.status === "partial").length,
+          unresolved: interfaces.filter((item) => item.status === "unresolved").length
+        };
+        Object.entries(counts).forEach(([label, value]) => {
+          const card = make("div", "stat");
+          card.append(make("strong", "", value), make("span", "", labelize(label)));
+          byId("stats").append(card);
+        });
+
+        renderTable(byId("run-table"), [
+          { key: "concern", label: "Concern" },
+          { key: "detail", label: "Command or symbol" },
+          { key: "evidence", label: "Evidence" }
+        ], values(GUIDE.run));
+        renderTable(byId("architecture-table"), [
+          { key: "component", label: "Component" },
+          { key: "responsibility", label: "Responsibility" },
+          { key: "depends_on", label: "Depends on" },
+          { key: "evidence", label: "Evidence" }
+        ], values(GUIDE.architecture));
+        renderTable(byId("risk-table"), [
+          { key: "finding", label: "Finding" },
+          { key: "impact", label: "Impact" },
+          { key: "verification", label: "Confidence or verification" }
+        ], values(GUIDE.risks));
+        appendList(byId("reading-list"), GUIDE.reading_order);
+      }
+
+      function renderInterfaces() {
+        const list = byId("interface-list");
+        const nav = byId("interface-nav");
+        const protocols = new Set();
+        values(GUIDE.interfaces).forEach((item) => {
+          protocols.add(item.protocol || "Unknown");
+          const card = renderInterface(item);
+          list.append(card);
+          const link = make("a", "", item.external || item.title || item.id);
+          link.href = `#${card.id}`;
+          link.dataset.target = card.id;
+          link.append(make("small", "", `${item.protocol || "Unknown"} · ${item.status || "unresolved"}`));
+          link.addEventListener("click", () => { card.open = true; });
+          nav.append(link);
+        });
+        [...protocols].sort().forEach((protocol) => {
+          const option = make("option", "", protocol);
+          option.value = protocol.toLowerCase();
+          byId("protocol-filter").append(option);
+        });
+      }
+
+      function applyFilters() {
+        const query = byId("search").value.trim().toLowerCase();
+        const protocol = byId("protocol-filter").value;
+        const status = byId("status-filter").value;
+        let visible = 0;
+        document.querySelectorAll(".interface-card").forEach((card) => {
+          const matches = (!query || card.dataset.search.includes(query)) &&
+            (!protocol || card.dataset.protocol === protocol) &&
+            (!status || card.dataset.status === status);
+          card.hidden = !matches;
+          const link = document.querySelector(`[data-target="${card.id}"]`);
+          if (link) link.hidden = !matches;
+          if (matches) visible += 1;
+        });
+        byId("showing").textContent = `Showing ${visible} of ${values(GUIDE.interfaces).length} interfaces`;
+      }
+
+      renderHeaderAndOverview();
+      renderInterfaces();
+      renderSharedChains();
+      renderSystemSections();
+      applyFilters();
+
+      ["search", "protocol-filter", "status-filter"].forEach((id) => byId(id).addEventListener("input", applyFilters));
+      byId("expand-all").addEventListener("click", () => {
+        document.querySelectorAll(".interface-card:not([hidden])").forEach((card) => { card.open = true; });
+      });
+      byId("collapse-all").addEventListener("click", () => {
+        document.querySelectorAll(".interface-card").forEach((card) => { card.open = false; });
+      });
+
+      const openHashTarget = () => {
+        const target = document.getElementById(location.hash.slice(1));
+        if (target && target.matches("details")) target.open = true;
+      };
+      window.addEventListener("hashchange", openHashTarget);
+      openHashTarget();
+
+      let printState = [];
+      window.addEventListener("beforeprint", () => {
+        printState = [...document.querySelectorAll(".interface-card")].map((card) => card.open);
+        document.querySelectorAll(".interface-card").forEach((card) => { card.hidden = false; card.open = true; });
+      });
+      window.addEventListener("afterprint", () => {
+        document.querySelectorAll(".interface-card").forEach((card, index) => { card.open = printState[index] ?? false; });
+        applyFilters();
+      });
+    })();
+  </script>
+</body>
+</html>

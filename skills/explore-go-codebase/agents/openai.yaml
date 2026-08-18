@@ -1,4 +1,4 @@
 interface:
   display_name: "Explore Go Codebase"
-  short_description: "Map Go architecture, call chains, and runtime flows"
-  default_prompt: "Use $explore-go-codebase to analyze this Go repository and produce an evidence-backed architecture guide with Mermaid diagrams."
+  short_description: "Trace every Go interface into an offline HTML guide"
+  default_prompt: "Use $explore-go-codebase to trace every inbound interface in this Go repository and create a self-contained local interactive HTML guide without publishing it."

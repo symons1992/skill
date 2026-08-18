@@ -1,22 +1,23 @@
 ---
 name: explore-go-codebase
-description: Rapidly analyze an unfamiliar Go repository and produce an evidence-backed codebase guide covering purpose, architecture, entry points, packages, dependencies, domain concepts, call chains, runtime sequences, business/data/error flows, concurrency, persistence, integrations, configuration, and risks. Use when onboarding to, explaining, auditing, documenting, or planning changes in a Golang codebase, especially when the result needs accurate Mermaid call graphs, sequence diagrams, or flowcharts linked to source files.
+description: Exhaustively analyze an unfamiliar Go repository and produce a self-contained, offline interactive HTML guide covering every inbound interface and its complete request chain, plus architecture, packages, dependencies, domain concepts, data/error/concurrency flows, persistence, integrations, configuration, tests, and risks. Use when onboarding to, explaining, auditing, documenting, or planning changes in a Golang codebase, especially API gateways, BFFs, edge services, protocol adapters, and other access-layer repositories where route-by-route or RPC-by-RPC traceability is required.
 ---
 
 # Explore Go Codebase
 
-Build a concise, navigable model of a Go repository. Treat source code and generated tool output as evidence; label inference and uncertainty instead of presenting guesses as facts.
+Build an evidence-backed model of a Go repository. For access-layer code, treat complete inbound-interface coverage as the primary deliverable rather than sampling a few representative flows.
 
 ## Workflow
 
-### 1. Establish scope
+### 1. Establish scope and output invariants
 
-- Locate the repository root, `go.mod`/`go.work`, user-facing binaries, services, workers, libraries, and existing architecture documents.
-- Preserve existing files unless the user asks for documentation to be written into the repository.
-- Decide the output location. Default to `CODEBASE_GUIDE.md` at the analyzed repository root when a durable guide is requested; otherwise answer in chat.
-- Copy `assets/codebase-guide.template.md` when creating a durable guide, then remove sections that do not apply.
+- Locate the repository root, `go.mod`/`go.work`, binaries, services, workers, libraries, generated contracts, and existing architecture documents.
+- Preserve existing files unless the user asks for repository documentation.
+- Produce `<repo-root>/CODEBASE_GUIDE.html` by default. The result must be a self-contained local file that opens through `file://` without a build step.
+- Never publish, deploy, upload, or expose the report through a public URL. Do not use remote scripts, styles, fonts, images, analytics, or network requests. If a local server is strictly necessary for testing, bind only to `127.0.0.1` and do not treat it as delivery.
+- Never copy secret values, credentials, tokens, private keys, or sensitive request examples into the report.
 
-### 2. Build a structural inventory
+### 2. Build the structural inventory
 
 Run the bundled scanner first:
 
@@ -26,65 +27,82 @@ python3 <skill-dir>/scripts/scan_go_repository.py <repo-root> --output /tmp/go-c
 
 Read the inventory, then inspect `go.mod`, `go.work`, entry points, configuration, API/schema definitions, migrations, generated-code markers, and tests. Use `rg` for targeted discovery. Read [references/analysis-playbook.md](references/analysis-playbook.md) before tracing a large, layered, concurrent, or framework-heavy repository.
 
-The scanner is a discovery aid, not a call-graph authority. Verify every important edge in source.
+Treat scanner output as discovery evidence, not an authoritative call graph. Verify every important edge in source.
 
-### 3. Identify the main capabilities
+### 3. Enumerate every inbound interface
 
-- Derive capabilities from externally visible behavior: commands, routes, RPC methods, consumers, scheduled jobs, exported library APIs, and tests.
-- Map each capability to its entry point, orchestration layer, domain logic, state changes, and external effects.
-- Prefer 3–7 high-value flows. Rank by user impact, centrality, and operational risk.
-- Create a small glossary when names carry domain meaning.
+Read [references/interface-tracing.md](references/interface-tracing.md) and create a coverage ledger before deep tracing.
 
-### 4. Trace calls and state
+- Enumerate every HTTP route, RPC method, GraphQL operation/resolver, WebSocket entry, message consumer, scheduled trigger, CLI command, and exported library entry that can initiate application behavior.
+- Resolve routes assembled through groups, prefixes, generated registration, embedded routers, build tags, and versioned modules.
+- Give every discovered interface a stable ID and record its registration evidence, transport contract, handler, and trace status.
+- Do not reduce the scope to a representative subset. Shared middleware or service segments may be documented once and referenced, but every interface must have its own contract, chain, outcomes, and evidence.
+- Reconcile implementation registrations with OpenAPI/protobuf/GraphQL schemas and report orphaned or undocumented interfaces in both directions.
 
-For each selected flow:
+### 4. Trace each interface end to end
 
-1. Start at a concrete trigger.
-2. Follow direct calls and dependency construction through interfaces to candidate implementations.
-3. Track inputs, validation, state mutation, persistence, network calls, emitted events, error translation, retries, and cancellation.
-4. Check tests to confirm intended behavior and edge cases.
-5. Record evidence as `relative/path.go:Lx-Ly` while working; refresh line numbers before delivery.
+For every ledger row, trace:
 
-Stop a trace where it reaches standard library/framework plumbing or leaves the repository. Name the boundary. Mark reflection, code generation, dependency injection, callbacks, interface dispatch, and goroutine handoffs when the target cannot be proven statically.
+```text
+trigger/registration
+  -> routing and middleware
+  -> decode/bind/normalize/validate
+  -> authentication/authorization/tenant/context
+  -> handler/controller
+  -> application/domain services
+  -> repositories, caches, queues, and outbound clients
+  -> transaction/side effects
+  -> error translation and response serialization
+```
 
-### 5. Draw only useful diagrams
+Follow interface dispatch through constructors and dependency injection to the production implementation. Record request and response fields, context propagation, branches, state changes, external effects, retries, timeouts, cancellation, idempotency, and tests. Cite the call expression or wiring evidence for every step.
 
-Read [references/diagram-guide.md](references/diagram-guide.md). Use:
+Stop only at a verified repository or process boundary. Mark dynamic, generated, reflection-based, build-specific, or unresolved edges explicitly; never fill gaps with plausible guesses.
 
-- A flowchart for system boundaries, decisions, state transitions, or data movement.
-- A sequence diagram for time-ordered collaboration across components.
-- A call graph for one bounded request/job path, not the whole repository.
-- A state diagram only when the domain has explicit lifecycle states.
+### 5. Model shared behavior and system context
 
-Keep diagrams readable and back every node and edge with inspected source. Accompany each diagram with entry conditions, outcome, important failure behavior, and evidence links.
+- Document shared middleware, interceptors, adapters, error mappers, transactions, and client wrappers once, then link each affected interface to the shared chain.
+- Explain startup, readiness, shutdown, goroutine ownership, channels, locks, and background work.
+- Map packages, configuration, persistence, external systems, test seams, and extension points.
+- Use architecture views only when they improve navigation. For request behavior, the per-interface step chain and branch/error tables are authoritative.
 
-### 6. Synthesize and quality-check
+### 6. Generate the offline interactive report
 
-Deliver the guide in this order:
+Read [references/html-output-guide.md](references/html-output-guide.md).
 
-1. Executive summary and scope
-2. How to run/test and primary entry points
-3. Architecture and package responsibilities
-4. Main capabilities
-5. Critical call chains and sequence diagrams
-6. Business, data, error, and concurrency flows
-7. Configuration, persistence, and integrations
-8. Testing strategy and extension points
-9. Risks, uncertainties, and suggested next reading
+1. Copy `assets/codebase-guide.data.example.json` to a temporary working file and replace the example data with verified findings.
+2. Include one `interfaces[]` record for every row in the coverage ledger; do not omit unresolved interfaces.
+3. Render the report:
 
-Before delivery, verify:
+```bash
+python3 <skill-dir>/scripts/render_codebase_guide.py \
+  --input /tmp/codebase-guide.data.json \
+  --output <repo-root>/CODEBASE_GUIDE.html
+```
 
+4. Run the renderer again with `--check` against the final data, open the HTML locally, and verify search, filters, navigation, expand/collapse, and print layout.
+5. Deliver the HTML file path and a concise coverage summary. Do not publish it.
+
+### 7. Quality gate
+
+Before delivery, verify all of the following:
+
+- Discovered interface count equals `traced + partial + unresolved`; every interface appears in the HTML.
+- Every traced interface has registration, request/response contract, ordered steps, important branches, error mapping, side effects, tests, and source evidence.
 - Every major claim cites a source file, symbol, configuration, schema, or test.
-- Diagram arrows represent real calls, messages, or state transitions.
 - Interface-to-implementation choices are proven or explicitly marked as candidates.
-- Happy paths and important failure/cancellation paths are both covered.
+- Shared-chain references identify the exact middleware/interceptor steps they replace.
+- Sync/async, transaction, retry, timeout, cancellation, and process boundaries are represented truthfully.
 - Generated/vendor code is distinguished from owned code.
-- No secrets or credential values are copied into the guide.
-- The overview is useful without reading every diagram.
+- The HTML has no external resource or network dependency and contains no secret values.
+- Unknowns remain visible and include a concrete verification path.
 
 ## Resource routing
 
+- Read `references/interface-tracing.md` for the exhaustive ledger, per-interface schema, and chain-resolution rules.
 - Read `references/analysis-playbook.md` for investigation order, framework heuristics, evidence rules, and difficult Go constructs.
-- Read `references/diagram-guide.md` before producing Mermaid diagrams.
-- Use `assets/codebase-guide.template.md` as the report skeleton.
-- Run `scripts/scan_go_repository.py --help` for scanner options and JSON output.
+- Read `references/diagram-guide.md` before adding architecture or sequence visuals to the offline report.
+- Read `references/html-output-guide.md` for the local-only HTML contract and QA procedure.
+- Use `assets/codebase-guide.data.example.json` as the report-data skeleton.
+- Use `scripts/render_codebase_guide.py` to validate data and create the self-contained HTML.
+- Run `scripts/scan_go_repository.py --help` for scanner options and JSON inventory output.

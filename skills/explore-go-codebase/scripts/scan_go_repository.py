@@ -28,10 +28,13 @@ FUNC_RE = re.compile(
 TYPE_RE = re.compile(r"(?m)^type\s+([A-Za-z_]\w*)\s+(struct|interface)\b")
 
 REGISTRATION_PATTERNS = {
-    "http": re.compile(r"\b(?:HandleFunc|Handle|Methods|GET|POST|PUT|PATCH|DELETE)\s*\("),
-    "grpc": re.compile(r"\bRegister\w*Server\s*\("),
+    "http": re.compile(r"\b(?:HandleFunc|Handle|Methods|Method|Any|GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s*\("),
+    "rpc": re.compile(r"\bRegister\w*(?:Server|Handler)\s*\("),
+    "graphql": re.compile(r"\b(?:Query|Mutation|Subscription|Resolver|GraphQL)\w*\s*\("),
+    "websocket-sse": re.compile(r"\b(?:Upgrade|WebSocket|Websocket|EventSource|ServerSentEvents)\w*\s*\("),
     "cli": re.compile(r"\b(?:AddCommand|cobra\.Command)\b"),
-    "async": re.compile(r"\b(?:Subscribe|Consume|Consumer|Publish|Producer|Cron|Schedule)\w*\s*\("),
+    "consumer": re.compile(r"\b(?:Subscribe|Consume|Consumer|HandleMessage|RegisterConsumer)\w*\s*\("),
+    "scheduler": re.compile(r"\b(?:Cron|Schedule|Every|AddFunc|AddJob)\w*\s*\("),
     "dependency-injection": re.compile(r"\b(?:wire\.Build|fx\.Provide|fx\.Invoke|dig\.In)\b"),
 }
 

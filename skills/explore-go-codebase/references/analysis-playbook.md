@@ -18,9 +18,10 @@ Start broad, then narrow:
 2. Find binaries under `cmd/` and all `package main` files.
 3. Find inbound adapters: HTTP routes, RPC registrations, CLI commands, message consumers, schedulers, and exported library APIs.
 4. Find composition roots: constructors, dependency injection, server setup, and lifecycle hooks.
-5. Trace the highest-value flows into domain/service code, repositories, clients, and emitted events.
-6. Read tests alongside implementation. Tests often reveal contracts, intended failures, and fake-to-interface mappings.
-7. Inspect schemas, migrations, protobuf/OpenAPI files, and configuration for behavior not obvious from Go code.
+5. Build a complete inbound-interface coverage ledger before deep tracing.
+6. Trace every inbound interface into domain/service code, repositories, clients, and emitted events. Prioritize high-risk interfaces first, but do not stop after a representative subset.
+7. Read tests alongside implementation. Tests often reveal contracts, intended failures, and fake-to-interface mappings.
+8. Inspect schemas, migrations, protobuf/OpenAPI files, and configuration for behavior not obvious from Go code.
 
 Avoid reading files sequentially. Use symbols and call sites to form hypotheses, then verify them.
 
@@ -66,13 +67,17 @@ TestMain|httptest|bufconn
 
 Also inspect generated registrations and build-tag variants. Record how startup, readiness, shutdown, signals, and background goroutines are coordinated.
 
+For access-layer repositories, discover interfaces from both registration code and declared contracts. Resolve router groups and prefixes into the final external identity. Reconcile both lists so contract-only and implementation-only endpoints remain visible.
+
 ## Call-chain resolution
 
-Trace a bounded path using this record:
+Trace each inbound interface using this record:
 
 ```text
 trigger -> adapter -> use case/service -> domain operation -> repository/client -> effect
 ```
+
+Expand the record to include shared and route-specific middleware, request binding, validation, identity/policy checks, response mapping, and serialization. Preserve actual runtime order.
 
 For every edge, locate the call expression and the receiver/value construction. For interface calls:
 
@@ -118,4 +123,6 @@ Use the cheapest meaningful checks:
 - `go vet ./...` can expose suspicious constructs but is not required for understanding.
 - Build/test failures are findings: record whether they result from missing services, build tags, generated files, private modules, or actual code errors.
 
-Cross-check every major capability against at least two of: registration, implementation, tests, schema/configuration, or runtime documentation. If sources disagree, report the disagreement instead of silently choosing one.
+Cross-check every interface against registration and implementation evidence, then against at least one of tests, schema/configuration, or runtime documentation when available. If sources disagree, report the disagreement instead of silently choosing one.
+
+Finish with an explicit count reconciliation: `discovered = traced + partial + unresolved`. A partial or unresolved interface is a reportable finding, not a reason to omit the row.

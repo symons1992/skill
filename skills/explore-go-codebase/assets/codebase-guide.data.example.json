@@ -1,0 +1,179 @@
+{
+  "repository": "example-service",
+  "scope": "Go module and owned API contracts",
+  "revision": "working tree at <commit>",
+  "generated_at": "YYYY-MM-DD",
+  "confidence": "Example data only; replace every value with repository evidence.",
+  "summary": "Explain what invokes the service, what it owns, and the most important boundaries.",
+  "run": [
+    {
+      "concern": "Run",
+      "detail": "go run ./cmd/api",
+      "evidence": ["cmd/api/main.go:L1"]
+    },
+    {
+      "concern": "Test",
+      "detail": "go test ./...",
+      "evidence": ["go.mod:L1"]
+    }
+  ],
+  "architecture": [
+    {
+      "component": "HTTP adapter",
+      "responsibility": "Routes requests, applies policy, and maps transport contracts.",
+      "depends_on": "Application service",
+      "evidence": ["internal/http/router.go:L20-L60"]
+    }
+  ],
+  "interfaces": [
+    {
+      "id": "http-post-v1-orders",
+      "protocol": "HTTP",
+      "external": "POST /v1/orders",
+      "title": "Create an order",
+      "status": "traced",
+      "summary": "Validates a create-order request, persists the order, and returns its identifier.",
+      "registration": {
+        "symbol": "registerOrderRoutes",
+        "evidence": ["internal/http/router.go:L42"]
+      },
+      "handler": {
+        "symbol": "OrderHandler.Create",
+        "evidence": ["internal/http/order_handler.go:L28-L72"]
+      },
+      "request": {
+        "content_type": "application/json",
+        "fields": ["customer_id: required string", "items: non-empty array"],
+        "validation": ["Reject an empty customer_id", "Reject an empty items list"],
+        "context": ["request ID", "authenticated principal", "deadline"]
+      },
+      "response": {
+        "success": "201 application/json",
+        "fields": ["order_id: string"],
+        "headers": ["Content-Type: application/json"]
+      },
+      "shared_chain_refs": ["http-authenticated-json"],
+      "steps": [
+        {
+          "stage": "registration",
+          "symbol": "registerOrderRoutes",
+          "action": "Mounts the handler under the /v1 group for POST /orders.",
+          "input": "Router and OrderHandler",
+          "output": "Registered route",
+          "effects": "None",
+          "evidence": ["internal/http/router.go:L42"],
+          "confidence": "confirmed"
+        },
+        {
+          "stage": "handler",
+          "symbol": "OrderHandler.Create",
+          "action": "Binds the JSON body, calls the application service, and maps the result.",
+          "input": "CreateOrderRequest",
+          "output": "CreateOrderInput",
+          "effects": "Calls OrderService.Create",
+          "evidence": ["internal/http/order_handler.go:L28-L72"],
+          "confidence": "confirmed"
+        },
+        {
+          "stage": "persistence",
+          "symbol": "OrderRepository.Insert",
+          "action": "Inserts the new order in the active transaction.",
+          "input": "Order aggregate",
+          "output": "Order ID",
+          "effects": "Writes orders and order_items",
+          "evidence": ["internal/store/order_repository.go:L51-L88"],
+          "confidence": "confirmed"
+        },
+        {
+          "stage": "response",
+          "symbol": "writeJSON",
+          "action": "Serializes the order ID and writes the success status.",
+          "input": "CreateOrderResult",
+          "output": "201 JSON response",
+          "effects": "Writes the HTTP response",
+          "evidence": ["internal/http/order_handler.go:L65-L71"],
+          "confidence": "confirmed"
+        }
+      ],
+      "branches": [
+        {
+          "condition": "Request validation fails",
+          "behavior": "Skip the service call and map field errors.",
+          "outcome": "400 validation response",
+          "evidence": ["internal/http/order_handler.go:L34-L43"]
+        }
+      ],
+      "errors": [
+        {
+          "source": "OrderService.Create",
+          "error": "ErrCustomerNotFound",
+          "translation": "Transport error mapper selects not_found.",
+          "external_result": "404 JSON error",
+          "evidence": ["internal/http/errors.go:L18-L31"]
+        }
+      ],
+      "effects": [
+        "Writes an order and its items in one transaction.",
+        "No asynchronous work is started by this handler."
+      ],
+      "tests": [
+        "internal/http/order_handler_test.go:L40-L140 covers success and invalid input."
+      ],
+      "unresolved": []
+    }
+  ],
+  "shared_chains": [
+    {
+      "id": "http-authenticated-json",
+      "title": "Authenticated JSON middleware",
+      "applies_to": "Authenticated /v1 JSON routes",
+      "steps": [
+        {
+          "stage": "middleware",
+          "symbol": "RequestID",
+          "action": "Creates or propagates a request ID in context.",
+          "evidence": ["internal/http/middleware.go:L15-L34"]
+        },
+        {
+          "stage": "authorization",
+          "symbol": "Authenticate",
+          "action": "Validates the bearer credential and stores the principal in context.",
+          "evidence": ["internal/http/auth.go:L22-L68"]
+        }
+      ]
+    }
+  ],
+  "system_sections": [
+    {
+      "title": "Configuration and integrations",
+      "items": [
+        {
+          "name": "PostgreSQL",
+          "detail": "Primary order persistence; connection parameters are read from configuration.",
+          "evidence": ["internal/config/config.go:L10-L38", "internal/store/store.go:L20-L55"]
+        }
+      ]
+    },
+    {
+      "title": "Concurrency and lifecycle",
+      "items": [
+        {
+          "name": "HTTP server shutdown",
+          "detail": "Signal cancellation triggers graceful shutdown with a bounded deadline.",
+          "evidence": ["cmd/api/main.go:L45-L78"]
+        }
+      ]
+    }
+  ],
+  "risks": [
+    {
+      "finding": "Example risk; replace it.",
+      "impact": "Explain user or operational impact.",
+      "verification": "Name the missing source, test, or runtime observation."
+    }
+  ],
+  "reading_order": [
+    "cmd/api/main.go — composition root and lifecycle",
+    "internal/http/router.go — complete HTTP surface"
+  ]
+}

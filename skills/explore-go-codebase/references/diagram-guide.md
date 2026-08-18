@@ -1,113 +1,59 @@
-# Mermaid diagram guide
+# Offline report visualization guide
 
 ## Contents
 
 - General rules
-- Architecture flowchart
-- Bounded call graph
+- Architecture view
+- Per-interface request chain
 - Runtime sequence
-- Decision and data flow
-- State lifecycle
-- Accuracy checklist
+- Decisions and data flow
+- Accuracy and offline checks
 
 ## General rules
 
-- Choose one question per diagram and state it in the title.
-- Prefer 5–12 nodes. Split a diagram once labels or crossing edges make it hard to scan.
-- Use repository terminology and concrete symbols, not invented layer names.
-- Shorten labels while keeping exact symbol names in the surrounding evidence table.
-- Show external systems as boundaries, not as unexplored internal steps.
-- Do not put source paths inside nodes; cite them below the diagram.
-- Use Mermaid syntax supported by common Markdown renderers. Avoid experimental features.
+- Choose one question per visual and state it in the title.
+- Prefer native HTML and CSS already provided by the report template.
+- Use inline SVG only when a relationship cannot be understood as clearly from the step chain or a table.
+- Never use Mermaid, a CDN, remote fonts, remote icons, remote images, canvas libraries, or runtime network requests in the delivered HTML.
+- Keep source paths out of visual labels; place evidence next to the relevant step.
+- Back every node and edge with inspected source.
 
-## Architecture flowchart
+## Architecture view
 
-Use for components and dependency direction:
+Use a small component table or inline SVG for system boundaries and dependency direction. Keep it to the repository-owned components and immediate external systems needed to orient a reader.
 
-```mermaid
-flowchart LR
-    Client[API client] --> HTTP[HTTP adapter]
-    HTTP --> App[Order service]
-    App --> Repo[(Order repository)]
-    App --> Pay[Payment client]
-    Repo --> DB[(PostgreSQL)]
-    Pay --> PSP[Payment provider]
-```
+Do not label a dependency diagram as a runtime request chain unless every edge is invoked in that order. The per-interface chain remains authoritative.
 
-Do not label this a runtime call chain unless every arrow is actually invoked in that order.
+## Per-interface request chain
 
-## Bounded call graph
+Use the report's ordered step rail for every interface. Each step needs:
 
-Use concrete functions for a single request or job:
+- ordinal and stage;
+- concrete symbol;
+- behavior in plain language;
+- input and output;
+- state or external effect;
+- source evidence and confidence.
 
-```mermaid
-flowchart TD
-    A[POST /orders] --> B[Handler.Create]
-    B --> C[Service.PlaceOrder]
-    C --> D[Repository.Insert]
-    C --> E[Publisher.OrderPlaced]
-```
-
-Represent conditional calls with a decision node. Use `-.->` for an inferred or runtime-selected target and explain it immediately below the diagram.
+Show shared-chain references at the exact point they execute. Expand route-specific overrides instead of hiding them in the shared description.
 
 ## Runtime sequence
 
-Use when timing, ordering, transactions, or async work matters:
+Use an ordered sequence table when timing, transactions, or asynchronous handoffs matter. Include caller/component, operation, synchronous or asynchronous mode, result, and evidence.
 
-```mermaid
-sequenceDiagram
-    actor User
-    participant H as OrderHandler
-    participant S as OrderService
-    participant R as OrderRepository
-    participant P as EventPublisher
-    User->>H: Create order
-    H->>S: PlaceOrder(ctx, input)
-    S->>R: Insert(tx, order)
-    R-->>S: order ID
-    S->>P: Publish(OrderPlaced)
-    P-->>S: accepted
-    S-->>H: order
-    H-->>User: 201 Created
-```
+Represent enqueue and later consumption as separate events. Do not imply the producer waits for consumer completion. Show transaction start/commit/rollback and retry loops only when code proves them.
 
-Use `alt`, `opt`, `loop`, and `par` only when source behavior proves those branches. Show asynchronous enqueue and later consumption as separate messages; do not imply the producer waits if it does not.
+## Decisions and data flow
 
-## Decision and data flow
+Use branch and error tables for validation, policy decisions, retry, fallback, and transformations. Record the actual condition, resulting call or state change, external outcome, and evidence.
 
-Use for validation, retries, fallback, and transformations:
+Do not collapse failure modes that map to different status codes, RPC codes, retry behavior, or operational signals.
 
-```mermaid
-flowchart TD
-    In[Raw request] --> V{Valid?}
-    V -- No --> Bad[Return validation error]
-    V -- Yes --> N[Normalize]
-    N --> Save[(Persist)]
-    Save --> Out[Return result]
-```
+## Accuracy and offline checks
 
-Label branches with actual conditions or error classes. Do not merge distinct failure modes merely to simplify the picture if they have different user or operational consequences.
-
-## State lifecycle
-
-Use only for explicit domain states:
-
-```mermaid
-stateDiagram-v2
-    [*] --> Pending
-    Pending --> Active: approve
-    Pending --> Rejected: reject
-    Active --> Suspended: suspend
-    Suspended --> Active: resume
-```
-
-Confirm transitions in code and persistence constraints. Mention impossible or guarded transitions in prose.
-
-## Accuracy checklist
-
-- Does every arrow have a source call, registration, message operation, or state update?
-- Is sync versus async behavior represented correctly?
-- Are transaction and process boundaries visible where important?
-- Are retries, loops, fan-out, cancellation, and error branches truthful?
+- Does every edge have a source call, registration, message operation, or state update?
+- Is sync versus async behavior explicit?
+- Are transaction, process, timeout, retry, and cancellation boundaries visible?
 - Are optional, build-specific, or dynamically selected edges marked?
-- Can a reader find evidence for every diagram in the adjacent table?
+- Can a reader find evidence for every step without inspecting a separate diagram legend?
+- Does the final HTML render with networking disabled and contain no external resource URLs?
