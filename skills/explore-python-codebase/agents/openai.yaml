@@ -1,0 +1,4 @@
+interface:
+  display_name: "Explore Python Codebase"
+  short_description: "Trace Python interfaces into an offline HTML guide"
+  default_prompt: "Use $explore-python-codebase to trace every inbound interface in this Python repository and create a self-contained local interactive HTML guide without publishing it."

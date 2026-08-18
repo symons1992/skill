@@ -1,0 +1,179 @@
+{
+  "repository": "example-service",
+  "scope": "Python project and owned API contracts",
+  "revision": "working tree at <commit>",
+  "generated_at": "YYYY-MM-DD",
+  "confidence": "Example data only; replace every value with repository evidence.",
+  "summary": "Explain what invokes the service, what it owns, and the most important boundaries.",
+  "run": [
+    {
+      "concern": "Run",
+      "detail": "uvicorn example_service.main:app",
+      "evidence": ["pyproject.toml:L1", "example_service/main.py:L8"]
+    },
+    {
+      "concern": "Test",
+      "detail": "pytest",
+      "evidence": ["pyproject.toml:L1"]
+    }
+  ],
+  "architecture": [
+    {
+      "component": "HTTP adapter",
+      "responsibility": "Routes requests, applies policy, and maps transport contracts.",
+      "depends_on": "Application service",
+      "evidence": ["example_service/api/routes.py:L1-L60"]
+    }
+  ],
+  "interfaces": [
+    {
+      "id": "http-post-v1-orders",
+      "protocol": "HTTP",
+      "external": "POST /v1/orders",
+      "title": "Create an order",
+      "status": "traced",
+      "summary": "Validates a create-order request, persists the order, and returns its identifier.",
+      "registration": {
+        "symbol": "router.post('/orders')",
+        "evidence": ["example_service/api/routes.py:L42"]
+      },
+      "handler": {
+        "symbol": "create_order",
+        "evidence": ["example_service/api/routes.py:L42-L72"]
+      },
+      "request": {
+        "content_type": "application/json",
+        "fields": ["customer_id: required string", "items: non-empty array"],
+        "validation": ["Reject an empty customer_id", "Reject an empty items list"],
+        "context": ["request ID", "authenticated principal", "deadline"]
+      },
+      "response": {
+        "success": "201 application/json",
+        "fields": ["order_id: string"],
+        "headers": ["Content-Type: application/json"]
+      },
+      "shared_chain_refs": ["http-authenticated-json"],
+      "steps": [
+        {
+          "stage": "registration",
+          "symbol": "include_router + router.post",
+          "action": "Combines the application and router prefixes and registers POST /v1/orders.",
+          "input": "FastAPI application and APIRouter",
+          "output": "Registered route",
+          "effects": "None",
+          "evidence": ["example_service/main.py:L12", "example_service/api/routes.py:L42"],
+          "confidence": "confirmed"
+        },
+        {
+          "stage": "handler",
+          "symbol": "create_order",
+          "action": "Receives the validated Pydantic model, calls the application service, and maps the result.",
+          "input": "CreateOrderRequest",
+          "output": "CreateOrderInput",
+          "effects": "Calls OrderService.Create",
+          "evidence": ["example_service/api/routes.py:L42-L72"],
+          "confidence": "confirmed"
+        },
+        {
+          "stage": "persistence",
+          "symbol": "SqlAlchemyOrderRepository.insert",
+          "action": "Adds and flushes the new order in the injected session transaction.",
+          "input": "Order aggregate",
+          "output": "Order ID",
+          "effects": "Writes orders and order_items",
+          "evidence": ["example_service/store/order_repository.py:L51-L88"],
+          "confidence": "confirmed"
+        },
+        {
+          "stage": "response",
+          "symbol": "OrderCreated",
+          "action": "FastAPI serializes the declared response model with status 201.",
+          "input": "CreateOrderResult",
+          "output": "201 JSON response",
+          "effects": "Writes the HTTP response",
+          "evidence": ["example_service/api/routes.py:L42-L72"],
+          "confidence": "confirmed"
+        }
+      ],
+      "branches": [
+        {
+          "condition": "Request validation fails",
+          "behavior": "Skip the service call and map field errors.",
+          "outcome": "400 validation response",
+          "evidence": ["example_service/api/schemas.py:L8-L28"]
+        }
+      ],
+      "errors": [
+        {
+          "source": "OrderService.create",
+          "error": "CustomerNotFound",
+          "translation": "The registered exception handler maps the domain exception.",
+          "external_result": "404 JSON error",
+          "evidence": ["example_service/api/errors.py:L18-L31"]
+        }
+      ],
+      "effects": [
+        "Writes an order and its items in one transaction.",
+        "No asynchronous work is started by this handler."
+      ],
+      "tests": [
+        "tests/api/test_orders.py:L40-L140 covers success and invalid input."
+      ],
+      "unresolved": []
+    }
+  ],
+  "shared_chains": [
+    {
+      "id": "http-authenticated-json",
+      "title": "Authenticated JSON middleware",
+      "applies_to": "Authenticated /v1 JSON routes",
+      "steps": [
+        {
+          "stage": "middleware",
+          "symbol": "RequestID",
+          "action": "Creates or propagates a request ID in context.",
+          "evidence": ["example_service/api/middleware.py:L15-L34"]
+        },
+        {
+          "stage": "authorization",
+          "symbol": "Authenticate",
+          "action": "The dependency validates the bearer credential and returns the principal.",
+          "evidence": ["example_service/api/dependencies.py:L22-L68"]
+        }
+      ]
+    }
+  ],
+  "system_sections": [
+    {
+      "title": "Configuration and integrations",
+      "items": [
+        {
+          "name": "PostgreSQL",
+          "detail": "Primary order persistence; connection parameters are read from configuration.",
+          "evidence": ["example_service/config.py:L10-L38", "example_service/store/session.py:L20-L55"]
+        }
+      ]
+    },
+    {
+      "title": "Concurrency and lifecycle",
+      "items": [
+        {
+          "name": "HTTP server shutdown",
+          "detail": "Signal cancellation triggers graceful shutdown with a bounded deadline.",
+          "evidence": ["example_service/main.py:L45-L78"]
+        }
+      ]
+    }
+  ],
+  "risks": [
+    {
+      "finding": "Example risk; replace it.",
+      "impact": "Explain user or operational impact.",
+      "verification": "Name the missing source, test, or runtime observation."
+    }
+  ],
+  "reading_order": [
+    "example_service/main.py — composition root and lifespan",
+    "example_service/api/routes.py — complete HTTP surface"
+  ]
+}
